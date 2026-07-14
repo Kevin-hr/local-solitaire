@@ -1,0 +1,1203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Local Solitaire · 经典纸牌</title>
+  <style>
+:root {
+  --felt: #0b633f;
+  --felt-deep: #06472f;
+  --felt-line: rgba(255, 255, 255, 0.1);
+  --ink: #17231e;
+  --muted: #69756f;
+  --cream: #f7f5ef;
+  --card-w: clamp(78px, 8.15vw, 106px);
+  --card-h: calc(var(--card-w) * 1.4);
+  --gap: clamp(14px, 2vw, 28px);
+  --down-step: clamp(16px, 1.6vw, 20px);
+  --up-step: clamp(28px, 2.4vw, 34px);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { min-width: 1024px; min-height: 100%; margin: 0; }
+
+body {
+  color: var(--ink);
+  background: var(--felt-deep);
+  overflow-x: auto;
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .42; }
+
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.toolbar {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) auto minmax(230px, 1fr);
+  align-items: center;
+  gap: 24px;
+  padding: 12px 28px;
+  background: var(--cream);
+  border-bottom: 1px solid rgba(14, 31, 23, .18);
+  box-shadow: 0 3px 18px rgba(0, 0, 0, .16);
+  position: relative;
+  z-index: 20;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 42px; height: 42px; display: grid; place-items: center;
+  color: #f9f7f0; background: #17231e; border-radius: 12px;
+  font-family: Georgia, serif; font-size: 25px;
+}
+.brand strong, .brand small { display: block; }
+.brand strong { font: 700 18px/1.1 Georgia, "Times New Roman", serif; letter-spacing: .01em; }
+.brand small { margin-top: 4px; color: var(--muted); font-size: 11px; letter-spacing: .12em; }
+
+.actions { display: flex; gap: 8px; }
+.actions button, .primary, .icon-btn {
+  min-height: 42px; padding: 0 15px; border: 1px solid #d8d8d0; border-radius: 10px;
+  color: #26332d; background: #fff; font-weight: 650;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.actions button:hover:not(:disabled), .icon-btn:hover { background: #f0efe8; border-color: #b9bdb7; }
+.actions button:active:not(:disabled), .primary:active { transform: translateY(1px); }
+.actions button.primary, .primary { color: white; background: #124f37; border-color: #124f37; }
+.actions button.primary:hover, .primary:hover { background: #0b3f2b; }
+
+.stats { justify-self: end; display: flex; gap: 10px; }
+.stats > span {
+  min-width: 82px; padding: 7px 12px; text-align: center; background: #eeeee8;
+  border-radius: 10px; border: 1px solid #deded7;
+}
+.stats small, .stats strong { display: block; }
+.stats small { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.stats strong { margin-top: 2px; font-variant-numeric: tabular-nums; font-size: 16px; }
+
+.game-board {
+  flex: 1; position: relative; min-height: calc(100vh - 78px); padding: 34px max(36px, calc((100vw - 1000px) / 2));
+  background:
+    radial-gradient(circle at 50% 18%, rgba(39, 151, 98, .34), transparent 42%),
+    repeating-linear-gradient(135deg, transparent 0 9px, rgba(255,255,255,.013) 9px 10px),
+    linear-gradient(160deg, var(--felt), var(--felt-deep));
+  overflow: hidden;
+}
+.game-board::after {
+  content: ""; position: absolute; inset: 20px; border: 1px solid var(--felt-line); border-radius: 18px; pointer-events: none;
+}
+
+.top-row, .tableau {
+  position: relative; z-index: 2; display: grid;
+  grid-template-columns: repeat(7, var(--card-w)); justify-content: space-between; column-gap: var(--gap);
+}
+.top-row { min-height: var(--card-h); }
+.top-spacer { grid-column: span 1; }
+.tableau { margin-top: 38px; min-height: calc(var(--card-h) + 250px); }
+
+.pile, .tableau-column {
+  width: var(--card-w); min-height: var(--card-h); position: relative;
+  border-radius: clamp(8px, .8vw, 11px);
+}
+.pile::before, .tableau-column:empty::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  border: 2px solid rgba(255,255,255,.18); background: rgba(0, 35, 22, .12);
+}
+.stock-pile::after {
+  content: "↻"; position: absolute; inset: 0; display: grid; place-items: center;
+  color: rgba(255,255,255,.34); font-size: 34px; pointer-events: none;
+}
+.stock-pile.has-cards::after { display: none; }
+.foundation::after {
+  content: attr(data-symbol); position: absolute; inset: 0; display: grid; place-items: center;
+  color: rgba(255,255,255,.26); font: 46px Georgia, serif; pointer-events: none;
+}
+.foundation.has-cards::after { display: none; }
+
+.card {
+  width: var(--card-w); height: var(--card-h); position: absolute; left: 0; top: 0;
+  border-radius: clamp(8px, .8vw, 11px); user-select: none; -webkit-user-select: none;
+  background: #fffef9; border: 1px solid rgba(32, 35, 31, .28);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .24), inset 0 0 0 1px rgba(255,255,255,.8);
+  transition: box-shadow 130ms ease, transform 130ms ease, filter 130ms ease;
+  overflow: hidden;
+}
+.card.face-up { cursor: grab; }
+.card.face-up:active { cursor: grabbing; }
+.card.red { color: #c62828; }
+.card.black { color: #151b19; }
+.card-corner { position: absolute; top: 7px; left: 8px; text-align: center; font: 700 clamp(15px, 1.55vw, 20px)/.95 Georgia, serif; }
+.card-corner .suit { display: block; font-size: .94em; margin-top: 3px; }
+.card-corner.bottom { inset: auto 8px 7px auto; transform: rotate(180deg); }
+.card-center { position: absolute; inset: 0; display: grid; place-items: center; font: clamp(34px, 4.7vw, 62px)/1 Georgia, serif; }
+
+.card.face-down {
+  background-color: #0f4e84;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.14) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.14) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.14) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.14) 75%);
+  background-position: 0 0, 7px 7px; background-size: 14px 14px;
+  border: 5px solid #f4f1e7; box-shadow: 0 4px 10px rgba(0,0,0,.25), inset 0 0 0 2px #2675ad;
+}
+.card.face-down::after {
+  content: ""; position: absolute; inset: 5px; border: 1px solid rgba(255,255,255,.5); border-radius: 4px;
+}
+
+.card.selected { transform: translateY(-5px); box-shadow: 0 0 0 4px #ffd95a, 0 10px 18px rgba(0,0,0,.35); z-index: 120 !important; }
+.card.dragging { opacity: .55; }
+.hint-source { animation: hintPulse 850ms ease-in-out 2; }
+.hint-target { animation: targetPulse 850ms ease-in-out 2; }
+.invalid-shake { animation: shake 220ms ease-in-out; }
+.drop-active::before { border-color: #ffe274 !important; box-shadow: inset 0 0 0 3px rgba(255,226,116,.22); }
+
+@keyframes hintPulse { 50% { box-shadow: 0 0 0 5px #ffe274, 0 10px 20px rgba(0,0,0,.35); transform: translateY(-5px); } }
+@keyframes targetPulse { 50% { box-shadow: inset 0 0 0 4px #ffe274, 0 0 22px rgba(255,226,116,.45); } }
+@keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+.status-message {
+  position: fixed; z-index: 50; left: 50%; bottom: 24px; transform: translate(-50%, 16px);
+  padding: 10px 16px; color: #163126; background: rgba(255,255,255,.94); border: 1px solid rgba(0,0,0,.12);
+  border-radius: 999px; box-shadow: 0 8px 25px rgba(0,0,0,.25); opacity: 0; pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease; font-size: 14px; font-weight: 600;
+}
+.status-message.show { opacity: 1; transform: translate(-50%, 0); }
+
+.modal[hidden] { display: none; }
+.modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(1, 24, 15, .68); backdrop-filter: blur(4px); }
+.modal-card {
+  position: relative; width: min(440px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto;
+  padding: 28px; background: #faf9f3; border: 1px solid rgba(255,255,255,.65); border-radius: 18px;
+  box-shadow: 0 26px 70px rgba(0,0,0,.36);
+}
+.modal-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.modal h2 { margin: 3px 0 0; font: 700 28px/1.15 Georgia, serif; }
+.eyebrow { color: #39715c; font-size: 10px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+.icon-btn { width: 38px; min-height: 38px; padding: 0; font-size: 25px; line-height: 1; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-top: 1px solid #dfdfd8; }
+.setting-row span, .setting-row strong, .setting-row small { display: block; }
+.setting-row small { margin-top: 4px; color: var(--muted); }
+.setting-row input { width: 20px; height: 20px; accent-color: #176245; }
+.wide { width: 100%; min-height: 46px; border-radius: 10px; margin-top: 14px; }
+
+.win-card { text-align: center; padding: 34px; }
+.win-card h2 { margin: 8px 0; font-size: 32px; }
+.win-card p { margin: 0; color: var(--muted); }
+.win-suits { display: flex; justify-content: center; gap: 10px; font: 31px Georgia, serif; margin-bottom: 17px; }
+.win-suits span:nth-child(2), .win-suits span:nth-child(4) { color: #c62828; }
+.win-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 24px 0 4px; }
+.win-stats span { padding: 14px; background: #edeee7; border-radius: 12px; }
+.win-stats small, .win-stats strong { display: block; }
+.win-stats small { color: var(--muted); }
+.win-stats strong { margin-top: 4px; font-size: 22px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1180px) {
+  .toolbar { gap: 14px; padding-inline: 20px; }
+  .brand small { display: none; }
+  .actions button { padding-inline: 12px; }
+  .game-board { padding-inline: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="toolbar">
+      <div class="brand" aria-label="Local Solitaire">
+        <span class="brand-mark" aria-hidden="true">♠</span>
+        <span><strong>Local Solitaire</strong><small>经典单张翻牌</small></span>
+      </div>
+      <nav class="actions" aria-label="游戏操作">
+        <button id="new-game-btn" class="primary" type="button"><span aria-hidden="true">↻</span> 新游戏</button>
+        <button id="undo-btn" type="button" disabled><span aria-hidden="true">↶</span> 撤销</button>
+        <button id="hint-btn" type="button"><span aria-hidden="true">◇</span> 提示</button>
+        <button id="settings-btn" type="button"><span aria-hidden="true">⚙</span> 设置</button>
+      </nav>
+      <div class="stats" aria-label="游戏统计">
+        <span id="timer-stat"><small>时间</small><strong id="timer">00:00</strong></span>
+        <span id="moves-stat"><small>步数</small><strong id="moves">0</strong></span>
+      </div>
+    </header>
+
+    <main id="game-board" class="game-board" aria-label="纸牌游戏区">
+      <section class="top-row" aria-label="牌库、废牌堆和基础牌堆">
+        <div id="stock" class="pile stock-pile" data-drop-type="stock" aria-label="牌库"></div>
+        <div id="waste" class="pile" data-source-type="waste" aria-label="废牌堆"></div>
+        <div class="top-spacer" aria-hidden="true"></div>
+        <div id="foundation-spades" class="pile foundation" data-drop-type="foundation" data-suit="spades" aria-label="黑桃基础牌堆"></div>
+        <div id="foundation-hearts" class="pile foundation" data-drop-type="foundation" data-suit="hearts" aria-label="红桃基础牌堆"></div>
+        <div id="foundation-clubs" class="pile foundation" data-drop-type="foundation" data-suit="clubs" aria-label="梅花基础牌堆"></div>
+        <div id="foundation-diamonds" class="pile foundation" data-drop-type="foundation" data-suit="diamonds" aria-label="方块基础牌堆"></div>
+      </section>
+
+      <section id="tableau" class="tableau" aria-label="桌面七列">
+        <div class="tableau-column" data-column="0" data-drop-type="tableau" aria-label="第 1 列"></div>
+        <div class="tableau-column" data-column="1" data-drop-type="tableau" aria-label="第 2 列"></div>
+        <div class="tableau-column" data-column="2" data-drop-type="tableau" aria-label="第 3 列"></div>
+        <div class="tableau-column" data-column="3" data-drop-type="tableau" aria-label="第 4 列"></div>
+        <div class="tableau-column" data-column="4" data-drop-type="tableau" aria-label="第 5 列"></div>
+        <div class="tableau-column" data-column="5" data-drop-type="tableau" aria-label="第 6 列"></div>
+        <div class="tableau-column" data-column="6" data-drop-type="tableau" aria-label="第 7 列"></div>
+      </section>
+      <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-modal="settings"></div>
+    <section class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-heading">
+        <div><span class="eyebrow">游戏偏好</span><h2 id="settings-title">设置</h2></div>
+        <button class="icon-btn" type="button" data-close-modal="settings" aria-label="关闭设置">×</button>
+      </div>
+      <label class="setting-row"><span><strong>音效</strong><small>翻牌、移动和提示音</small></span><input id="setting-sound" type="checkbox"></label>
+      <label class="setting-row"><span><strong>自动移至基础牌堆</strong><small>移动后自动收起可用顶牌</small></span><input id="setting-auto-foundation" type="checkbox"></label>
+      <label class="setting-row"><span><strong>自动保存</strong><small>每次操作后保存本局</small></span><input id="setting-autosave" type="checkbox"></label>
+      <label class="setting-row"><span><strong>无限循环牌库</strong><small>废牌用尽后可重新翻牌</small></span><input id="setting-unlimited" type="checkbox"></label>
+      <label class="setting-row"><span><strong>显示计时器</strong></span><input id="setting-timer" type="checkbox"></label>
+      <label class="setting-row"><span><strong>显示步数</strong></span><input id="setting-moves" type="checkbox"></label>
+      <button id="settings-done-btn" class="primary wide" type="button">完成</button>
+    </section>
+  </div>
+
+  <div id="win-modal" class="modal" hidden>
+    <div class="modal-backdrop"></div>
+    <section class="modal-card win-card" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="win-suits" aria-hidden="true"><span>♠</span><span>♥</span><span>♣</span><span>♦</span></div>
+      <span class="eyebrow">牌局完成</span>
+      <h2 id="win-title">恭喜完成本局</h2>
+      <p>四组花色都已回到基础牌堆。</p>
+      <div class="win-stats"><span><small>用时</small><strong id="win-time">00:00</strong></span><span><small>步数</small><strong id="win-moves">0</strong></span></div>
+      <button id="play-again-btn" class="primary wide" type="button">再来一局</button>
+    </section>
+  </div>
+
+
+
+
+
+
+
+<script>
+(function (app) {
+  "use strict";
+
+  const SUITS = ["hearts", "diamonds", "clubs", "spades"];
+  const SUIT_SYMBOLS = { hearts: "♥", diamonds: "♦", clubs: "♣", spades: "♠" };
+  const RANK_LABELS = { 1: "A", 11: "J", 12: "Q", 13: "K" };
+
+  function createDeck() {
+    const deck = [];
+    for (const suit of SUITS) {
+      for (let rank = 1; rank <= 13; rank += 1) {
+        deck.push({
+          id: `${suit.charAt(0).toUpperCase()}-${rank}`,
+          suit,
+          rank,
+          color: suit === "hearts" || suit === "diamonds" ? "red" : "black",
+          faceUp: false
+        });
+      }
+    }
+    return deck;
+  }
+
+  function shuffleDeck(deck, randomFn) {
+    const result = deck.map((card) => ({ ...card }));
+    const random = randomFn || Math.random;
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(random() * (index + 1));
+      [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
+    return result;
+  }
+
+  function dealCards(deck) {
+    const cards = deck.map((card) => ({ ...card, faceUp: false }));
+    const tableau = Array.from({ length: 7 }, () => []);
+    for (let column = 0; column < 7; column += 1) {
+      for (let row = 0; row <= column; row += 1) {
+        const card = cards.pop();
+        card.faceUp = row === column;
+        tableau[column].push(card);
+      }
+    }
+    return { stock: cards, tableau };
+  }
+
+  function rankLabel(rank) {
+    return RANK_LABELS[rank] || String(rank);
+  }
+
+  app.cards = { SUITS, SUIT_SYMBOLS, createDeck, shuffleDeck, dealCards, rankLabel };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  function isDescendingAlternating(cards) {
+    if (!Array.isArray(cards) || cards.length === 0) return false;
+    if (cards.some((card) => !card.faceUp)) return false;
+    for (let index = 0; index < cards.length - 1; index += 1) {
+      const upper = cards[index];
+      const lower = cards[index + 1];
+      if (upper.rank !== lower.rank + 1 || upper.color === lower.color) return false;
+    }
+    return true;
+  }
+
+  function canMoveToTableau(cards, targetPile) {
+    if (!isDescendingAlternating(cards)) return false;
+    const first = cards[0];
+    if (!targetPile || targetPile.length === 0) return first.rank === 13;
+    const target = targetPile[targetPile.length - 1];
+    return target.faceUp && target.rank === first.rank + 1 && target.color !== first.color;
+  }
+
+  function canMoveToFoundation(card, foundation, foundationSuit) {
+    if (!card || !card.faceUp || card.suit !== foundationSuit) return false;
+    if (!foundation || foundation.length === 0) return card.rank === 1;
+    const top = foundation[foundation.length - 1];
+    return top.suit === card.suit && card.rank === top.rank + 1;
+  }
+
+  app.rules = { isDescendingAlternating, canMoveToTableau, canMoveToFoundation };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  const SAVE_KEY = "local-solitaire-save-v1";
+  const SETTINGS_KEY = "local-solitaire-settings-v1";
+  const DEFAULT_SETTINGS = {
+    sound: true,
+    autoFoundation: false,
+    autoSave: true,
+    unlimitedStock: true,
+    showTimer: true,
+    showMoves: true
+  };
+
+  function safeParse(value) {
+    try { return JSON.parse(value); } catch (_error) { return null; }
+  }
+
+  function saveGame(gameState) {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), gameState }));
+      return true;
+    } catch (_error) { return false; }
+  }
+
+  function loadGame() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const save = safeParse(raw);
+      if (!save || save.version !== 1 || !save.gameState) throw new Error("Invalid save");
+      return save.gameState;
+    } catch (_error) {
+      clearGame();
+      return null;
+    }
+  }
+
+  function clearGame() {
+    try { localStorage.removeItem(SAVE_KEY); } catch (_error) { /* localStorage unavailable */ }
+  }
+
+  function saveSettings(settings) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_error) { /* ignore */ }
+  }
+
+  function loadSettings() {
+    try {
+      const saved = safeParse(localStorage.getItem(SETTINGS_KEY));
+      return { ...DEFAULT_SETTINGS, ...(saved || {}) };
+    } catch (_error) { return { ...DEFAULT_SETTINGS }; }
+  }
+
+  app.storage = { SAVE_KEY, DEFAULT_SETTINGS, saveGame, loadGame, clearGame, saveSettings, loadSettings };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  const { SUITS, createDeck, shuffleDeck, dealCards } = app.cards;
+  const { isDescendingAlternating, canMoveToTableau, canMoveToFoundation } = app.rules;
+
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+
+  function emptyFoundations() {
+    return { hearts: [], diamonds: [], clubs: [], spades: [] };
+  }
+
+  function createInitialState(randomFn) {
+    const dealt = dealCards(shuffleDeck(createDeck(), randomFn));
+    return {
+      stock: dealt.stock,
+      waste: [],
+      foundations: emptyFoundations(),
+      tableau: dealt.tableau,
+      selected: null,
+      history: [],
+      moves: 0,
+      elapsedTime: 0,
+      timerStartedAt: Date.now(),
+      status: "playing",
+      stockPasses: 0
+    };
+  }
+
+  function snapshot(state) {
+    return clone({
+      stock: state.stock,
+      waste: state.waste,
+      foundations: state.foundations,
+      tableau: state.tableau,
+      moves: state.moves,
+      elapsedTime: getElapsedTime(state),
+      status: state.status,
+      stockPasses: state.stockPasses || 0
+    });
+  }
+
+  function normalizeLoadedState(saved) {
+    if (!saved || !Array.isArray(saved.stock) || !Array.isArray(saved.waste) || !Array.isArray(saved.tableau) || saved.tableau.length !== 7) return null;
+    if (!saved.foundations || SUITS.some((suit) => !Array.isArray(saved.foundations[suit]))) return null;
+    const allCards = [
+      ...saved.stock,
+      ...saved.waste,
+      ...SUITS.flatMap((suit) => saved.foundations[suit]),
+      ...saved.tableau.flat()
+    ];
+    if (allCards.length !== 52 || new Set(allCards.map((card) => card.id)).size !== 52) return null;
+    return {
+      ...clone(saved),
+      selected: null,
+      history: [],
+      moves: Number(saved.moves) || 0,
+      elapsedTime: Number(saved.elapsedTime) || 0,
+      timerStartedAt: Date.now(),
+      status: saved.status === "won" ? "won" : "playing",
+      stockPasses: Number(saved.stockPasses) || 0
+    };
+  }
+
+  function getElapsedTime(state) {
+    const base = Number(state.elapsedTime) || 0;
+    if (state.status !== "playing" || !state.timerStartedAt) return base;
+    return base + Math.max(0, Math.floor((Date.now() - state.timerStartedAt) / 1000));
+  }
+
+  function createGame(options) {
+    const config = options || {};
+    let state = createInitialState(config.randomFn);
+    let settings = { ...app.storage.DEFAULT_SETTINGS, ...(config.settings || {}) };
+    const listeners = new Set();
+
+    function emit(eventName, detail) {
+      listeners.forEach((listener) => listener(state, eventName || "change", detail));
+    }
+
+    function saveHistory() {
+      state.history.push(snapshot(state));
+      if (state.history.length > 100) state.history.shift();
+    }
+
+    function pauseClockIntoState() {
+      state.elapsedTime = getElapsedTime(state);
+      state.timerStartedAt = state.status === "playing" ? Date.now() : null;
+    }
+
+    function flipExposedCard(columnIndex) {
+      const column = state.tableau[columnIndex];
+      const top = column && column[column.length - 1];
+      if (top && !top.faceUp) { top.faceUp = true; return true; }
+      return false;
+    }
+
+    function checkWin() {
+      const won = SUITS.reduce((total, suit) => total + state.foundations[suit].length, 0) === 52;
+      if (won && state.status !== "won") {
+        state.elapsedTime = getElapsedTime(state);
+        state.timerStartedAt = null;
+        state.status = "won";
+      }
+      return won;
+    }
+
+    function sourceCards(selection) {
+      if (!selection) return [];
+      if (selection.type === "waste") {
+        const card = state.waste[state.waste.length - 1];
+        return card ? [card] : [];
+      }
+      if (selection.type === "foundation") {
+        const pile = state.foundations[selection.suit];
+        const card = pile[pile.length - 1];
+        return card ? [card] : [];
+      }
+      if (selection.type === "tableau") {
+        return state.tableau[selection.column].slice(selection.index);
+      }
+      return [];
+    }
+
+    function removeSource(selection) {
+      if (selection.type === "waste") return state.waste.pop();
+      if (selection.type === "foundation") return state.foundations[selection.suit].pop();
+      if (selection.type === "tableau") return state.tableau[selection.column].splice(selection.index);
+      return null;
+    }
+
+    function tryAutoFoundation() {
+      if (!settings.autoFoundation || state.status !== "playing") return 0;
+      let moved = 0;
+      let progress = true;
+      while (progress) {
+        progress = false;
+        const candidates = [];
+        const wasteTop = state.waste[state.waste.length - 1];
+        if (wasteTop) candidates.push({ card: wasteTop, source: { type: "waste" } });
+        state.tableau.forEach((column, columnIndex) => {
+          const card = column[column.length - 1];
+          if (card && card.faceUp) candidates.push({ card, source: { type: "tableau", column: columnIndex, index: column.length - 1 } });
+        });
+        const candidate = candidates.find(({ card }) => canMoveToFoundation(card, state.foundations[card.suit], card.suit));
+        if (candidate) {
+          const card = removeSource(candidate.source);
+          state.foundations[card.suit].push(card);
+          if (candidate.source.type === "tableau") flipExposedCard(candidate.source.column);
+          moved += 1;
+          progress = true;
+        }
+      }
+      return moved;
+    }
+
+    function finishLegalMove(eventName, sourceColumn) {
+      if (typeof sourceColumn === "number") flipExposedCard(sourceColumn);
+      state.selected = null;
+      state.moves += 1;
+      tryAutoFoundation();
+      const won = checkWin();
+      emit(won ? "win" : eventName, { won });
+      return true;
+    }
+
+    function startNewGame(randomFn) {
+      state = createInitialState(randomFn || config.randomFn);
+      emit("new-game");
+      return state;
+    }
+
+    function restore(savedState) {
+      const restored = normalizeLoadedState(savedState);
+      if (!restored) return false;
+      state = restored;
+      emit(state.status === "won" ? "win" : "restore");
+      return true;
+    }
+
+    function drawFromStock() {
+      if (state.status !== "playing") return false;
+      if (state.stock.length === 0) return resetStock();
+      saveHistory();
+      const card = state.stock.pop();
+      card.faceUp = true;
+      state.waste.push(card);
+      return finishLegalMove("draw");
+    }
+
+    function resetStock() {
+      if (state.status !== "playing" || state.stock.length || !state.waste.length) return false;
+      if (!settings.unlimitedStock && state.stockPasses >= 1) return false;
+      saveHistory();
+      state.stock = state.waste.reverse();
+      state.stock.forEach((card) => { card.faceUp = false; });
+      state.waste = [];
+      state.stockPasses += 1;
+      return finishLegalMove("recycle");
+    }
+
+    function selectSource(selection) {
+      if (state.status !== "playing") return false;
+      if (selection && selection.type === "tableau") {
+        const column = state.tableau[selection.column];
+        const cards = column && column.slice(selection.index);
+        if (!cards || !isDescendingAlternating(cards)) return false;
+      }
+      if (!sourceCards(selection).length) return false;
+      const same = state.selected && JSON.stringify(state.selected) === JSON.stringify(selection);
+      state.selected = same ? null : { ...selection };
+      emit("selection");
+      return !same;
+    }
+
+    function clearSelection() {
+      if (!state.selected) return;
+      state.selected = null;
+      emit("selection");
+    }
+
+    function moveCards(selection, target) {
+      const source = selection || state.selected;
+      if (!source || !target || state.status !== "playing") return false;
+      const cards = sourceCards(source);
+      if (!cards.length) return false;
+
+      if (target.type === "tableau") {
+        if (source.type === "tableau" && source.column === target.column) return false;
+        if (!canMoveToTableau(cards, state.tableau[target.column])) return false;
+        saveHistory();
+        const removed = removeSource(source);
+        state.tableau[target.column].push(...(Array.isArray(removed) ? removed : [removed]));
+        return finishLegalMove("move", source.type === "tableau" ? source.column : undefined);
+      }
+
+      if (target.type === "foundation") {
+        if (cards.length !== 1 || source.type === "foundation") return false;
+        const card = cards[0];
+        if (!canMoveToFoundation(card, state.foundations[target.suit], target.suit)) return false;
+        saveHistory();
+        removeSource(source);
+        state.foundations[target.suit].push(card);
+        return finishLegalMove("foundation", source.type === "tableau" ? source.column : undefined);
+      }
+      return false;
+    }
+
+    function moveSelectedTo(target) { return moveCards(state.selected, target); }
+
+    function moveToFoundation(selection) {
+      const cards = sourceCards(selection);
+      if (cards.length !== 1) return false;
+      return moveCards(selection, { type: "foundation", suit: cards[0].suit });
+    }
+
+    function undoMove() {
+      if (state.status === "won" || !state.history.length) return false;
+      const previous = state.history.pop();
+      const remainingHistory = state.history;
+      state = { ...previous, selected: null, history: remainingHistory, timerStartedAt: Date.now() };
+      emit("undo");
+      return true;
+    }
+
+    function findHint() {
+      const foundationCandidates = [];
+      const wasteTop = state.waste[state.waste.length - 1];
+      if (wasteTop) foundationCandidates.push({ card: wasteTop, source: { type: "waste" } });
+      state.tableau.forEach((column, columnIndex) => {
+        const card = column[column.length - 1];
+        if (card && card.faceUp) foundationCandidates.push({ card, source: { type: "tableau", column: columnIndex, index: column.length - 1 } });
+      });
+      for (const candidate of foundationCandidates) {
+        if (canMoveToFoundation(candidate.card, state.foundations[candidate.card.suit], candidate.card.suit)) {
+          return { source: candidate.source, target: { type: "foundation", suit: candidate.card.suit }, message: `${candidate.card.id} 可以移到基础牌堆` };
+        }
+      }
+
+      for (let sourceColumn = 0; sourceColumn < 7; sourceColumn += 1) {
+        const column = state.tableau[sourceColumn];
+        const firstFaceUp = column.findIndex((card) => card.faceUp);
+        if (firstFaceUp <= 0) continue;
+        const movable = column.slice(firstFaceUp);
+        if (!isDescendingAlternating(movable)) continue;
+        for (let targetColumn = 0; targetColumn < 7; targetColumn += 1) {
+          if (sourceColumn !== targetColumn && canMoveToTableau(movable, state.tableau[targetColumn])) {
+            return {
+              source: { type: "tableau", column: sourceColumn, index: firstFaceUp },
+              target: { type: "tableau", column: targetColumn },
+              message: "移动这组牌可以翻开一张暗牌"
+            };
+          }
+        }
+      }
+
+      if (wasteTop) {
+        for (let targetColumn = 0; targetColumn < 7; targetColumn += 1) {
+          if (canMoveToTableau([wasteTop], state.tableau[targetColumn])) {
+            return { source: { type: "waste" }, target: { type: "tableau", column: targetColumn }, message: "废牌可以移到桌面列" };
+          }
+        }
+      }
+
+      for (let sourceColumn = 0; sourceColumn < 7; sourceColumn += 1) {
+        const column = state.tableau[sourceColumn];
+        for (let index = 0; index < column.length; index += 1) {
+          const cards = column.slice(index);
+          if (!isDescendingAlternating(cards)) continue;
+          for (let targetColumn = 0; targetColumn < 7; targetColumn += 1) {
+            if (sourceColumn !== targetColumn && canMoveToTableau(cards, state.tableau[targetColumn])) {
+              return { source: { type: "tableau", column: sourceColumn, index }, target: { type: "tableau", column: targetColumn }, message: "这组牌可以移到另一列" };
+            }
+          }
+        }
+      }
+
+      for (const suit of SUITS) {
+        const pile = state.foundations[suit];
+        const card = pile[pile.length - 1];
+        if (!card) continue;
+        for (let targetColumn = 0; targetColumn < 7; targetColumn += 1) {
+          if (canMoveToTableau([card], state.tableau[targetColumn])) {
+            return {
+              source: { type: "foundation", suit },
+              target: { type: "tableau", column: targetColumn },
+              message: "基础牌堆的顶牌可以移回桌面"
+            };
+          }
+        }
+      }
+
+      if (state.stock.length || (state.waste.length && (settings.unlimitedStock || state.stockPasses < 1))) {
+        return { source: { type: "stock" }, target: { type: "stock" }, message: state.stock.length ? "从牌库翻出下一张牌" : "回收废牌并继续翻牌" };
+      }
+      return null;
+    }
+
+    function setSettings(nextSettings) {
+      settings = { ...settings, ...nextSettings };
+      emit("settings");
+    }
+
+    function exportState() {
+      pauseClockIntoState();
+      return snapshot(state);
+    }
+
+    return {
+      subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+      getState: () => state,
+      getSettings: () => ({ ...settings }),
+      setSettings,
+      startNewGame,
+      restore,
+      drawFromStock,
+      resetStock,
+      selectSource,
+      clearSelection,
+      moveCards,
+      moveSelectedTo,
+      moveToFoundation,
+      flipExposedCard,
+      undoMove,
+      findHint,
+      checkWin,
+      getElapsedTime: () => getElapsedTime(state),
+      exportState,
+      sourceCards: () => sourceCards(state.selected)
+    };
+  }
+
+  app.game = { createGame, createInitialState, normalizeLoadedState, getElapsedTime };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  const { SUITS, SUIT_SYMBOLS, rankLabel } = app.cards;
+
+  function selectionMatches(selected, type, details) {
+    if (!selected || selected.type !== type) return false;
+    if (type === "tableau") return selected.column === details.column && selected.index === details.index;
+    if (type === "foundation") return selected.suit === details.suit;
+    return true;
+  }
+
+  function createCardElement(card, source, topExpression) {
+    const element = document.createElement("div");
+    element.className = `card ${card.faceUp ? `face-up ${card.color}` : "face-down"}`;
+    element.dataset.cardId = card.id;
+    element.dataset.sourceType = source.type;
+    if (typeof source.column === "number") element.dataset.column = String(source.column);
+    if (typeof source.index === "number") element.dataset.index = String(source.index);
+    if (source.suit) element.dataset.suit = source.suit;
+    element.style.zIndex = String((source.index || 0) + 2);
+    if (topExpression) element.style.top = topExpression;
+    element.draggable = Boolean(card.faceUp);
+    element.setAttribute("aria-label", card.faceUp ? `${rankLabel(card.rank)} ${SUIT_SYMBOLS[card.suit]}` : "背面朝上的牌");
+    element.setAttribute("role", "button");
+    element.tabIndex = card.faceUp ? 0 : -1;
+
+    if (card.faceUp) {
+      const rank = rankLabel(card.rank);
+      const symbol = SUIT_SYMBOLS[card.suit];
+      element.innerHTML = `<span class="card-corner"><span>${rank}</span><span class="suit">${symbol}</span></span><span class="card-center" aria-hidden="true">${symbol}</span><span class="card-corner bottom" aria-hidden="true"><span>${rank}</span><span class="suit">${symbol}</span></span>`;
+    }
+    return element;
+  }
+
+  function createRenderer() {
+    const elements = {
+      stock: document.getElementById("stock"),
+      waste: document.getElementById("waste"),
+      foundations: Object.fromEntries(SUITS.map((suit) => [suit, document.getElementById(`foundation-${suit}`)])),
+      columns: Array.from(document.querySelectorAll(".tableau-column")),
+      undo: document.getElementById("undo-btn"),
+      moves: document.getElementById("moves"),
+      timer: document.getElementById("timer"),
+      movesStat: document.getElementById("moves-stat"),
+      timerStat: document.getElementById("timer-stat")
+    };
+
+    SUITS.forEach((suit) => { elements.foundations[suit].dataset.symbol = SUIT_SYMBOLS[suit]; });
+
+    function render(state, settings) {
+      elements.stock.innerHTML = "";
+      elements.stock.classList.toggle("has-cards", state.stock.length > 0);
+      elements.stock.setAttribute("aria-label", state.stock.length ? `牌库，剩余 ${state.stock.length} 张` : "空牌库，点击回收废牌");
+      if (state.stock.length) {
+        const card = state.stock[state.stock.length - 1];
+        elements.stock.appendChild(createCardElement(card, { type: "stock" }));
+      }
+
+      elements.waste.innerHTML = "";
+      const wasteTop = state.waste[state.waste.length - 1];
+      if (wasteTop) {
+        const card = createCardElement(wasteTop, { type: "waste" });
+        if (selectionMatches(state.selected, "waste", {})) card.classList.add("selected");
+        elements.waste.appendChild(card);
+      }
+
+      SUITS.forEach((suit) => {
+        const pile = elements.foundations[suit];
+        pile.innerHTML = "";
+        const cards = state.foundations[suit];
+        pile.classList.toggle("has-cards", cards.length > 0);
+        const top = cards[cards.length - 1];
+        if (top) {
+          const card = createCardElement(top, { type: "foundation", suit });
+          if (selectionMatches(state.selected, "foundation", { suit })) card.classList.add("selected");
+          pile.appendChild(card);
+        }
+      });
+
+      state.tableau.forEach((column, columnIndex) => {
+        const pile = elements.columns[columnIndex];
+        pile.innerHTML = "";
+        let downCount = 0;
+        let upCount = 0;
+        column.forEach((card, index) => {
+          const top = `calc(${downCount} * var(--down-step) + ${upCount} * var(--up-step))`;
+          const cardElement = createCardElement(card, { type: "tableau", column: columnIndex, index }, top);
+          if (selectionMatches(state.selected, "tableau", { column: columnIndex, index })) cardElement.classList.add("selected");
+          pile.appendChild(cardElement);
+          if (card.faceUp) upCount += 1; else downCount += 1;
+        });
+        pile.style.minHeight = `calc(var(--card-h) + ${downCount} * var(--down-step) + ${upCount} * var(--up-step))`;
+      });
+
+      elements.undo.disabled = state.history.length === 0 || state.status !== "playing";
+      elements.moves.textContent = String(state.moves);
+      elements.movesStat.hidden = !settings.showMoves;
+      elements.timerStat.hidden = !settings.showTimer;
+      document.getElementById("game-board").classList.toggle("game-won", state.status === "won");
+    }
+
+    function formatTime(totalSeconds) {
+      const seconds = Math.max(0, Math.floor(totalSeconds));
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const remainder = seconds % 60;
+      return hours > 0
+        ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
+        : `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    function updateTimer(seconds) { elements.timer.textContent = formatTime(seconds); }
+
+    function descriptorElement(descriptor, sourceMode) {
+      if (!descriptor) return null;
+      if (descriptor.type === "stock") return elements.stock;
+      if (descriptor.type === "waste") return elements.waste.querySelector(".card") || elements.waste;
+      if (descriptor.type === "foundation") {
+        return sourceMode ? (elements.foundations[descriptor.suit].querySelector(".card") || elements.foundations[descriptor.suit]) : elements.foundations[descriptor.suit];
+      }
+      if (descriptor.type === "tableau") {
+        if (sourceMode && typeof descriptor.index === "number") return elements.columns[descriptor.column].querySelector(`[data-index="${descriptor.index}"]`);
+        return elements.columns[descriptor.column];
+      }
+      return null;
+    }
+
+    function showHint(hint) {
+      document.querySelectorAll(".hint-source, .hint-target").forEach((element) => element.classList.remove("hint-source", "hint-target"));
+      if (!hint) return;
+      const source = descriptorElement(hint.source, true);
+      const target = descriptorElement(hint.target, false);
+      if (source) source.classList.add("hint-source");
+      if (target && target !== source) target.classList.add("hint-target");
+      window.setTimeout(() => {
+        if (source) source.classList.remove("hint-source");
+        if (target) target.classList.remove("hint-target");
+      }, 1900);
+    }
+
+    return { render, updateTimer, formatTime, showHint, elements };
+  }
+
+  app.renderer = { createRenderer };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  function cardSource(cardElement) {
+    const type = cardElement.dataset.sourceType;
+    if (type === "tableau") return { type, column: Number(cardElement.dataset.column), index: Number(cardElement.dataset.index) };
+    if (type === "foundation") return { type, suit: cardElement.dataset.suit };
+    return { type };
+  }
+
+  function dropTarget(element) {
+    const target = element.closest("[data-drop-type]");
+    if (!target) return null;
+    const type = target.dataset.dropType;
+    if (type === "tableau") return { type, column: Number(target.dataset.column) };
+    if (type === "foundation") return { type, suit: target.dataset.suit };
+    return { type };
+  }
+
+  function createInteractions(game, feedback) {
+    const board = document.getElementById("game-board");
+    let dragSourceElement = null;
+
+    function invalid(element) {
+      feedback.invalid();
+      const target = element && (element.closest(".pile, .tableau-column") || element);
+      if (!target) return;
+      target.classList.remove("invalid-shake");
+      void target.offsetWidth;
+      target.classList.add("invalid-shake");
+      window.setTimeout(() => target.classList.remove("invalid-shake"), 260);
+    }
+
+    board.addEventListener("click", (event) => {
+      const card = event.target.closest(".card");
+      const pile = event.target.closest(".pile, .tableau-column");
+      if (!pile) return;
+
+      if (pile.id === "stock") {
+        if (!game.drawFromStock()) invalid(pile); else feedback.flip();
+        return;
+      }
+
+      const target = dropTarget(pile);
+      const selected = game.getState().selected;
+      if (selected && target && (target.type === "tableau" || target.type === "foundation")) {
+        if (game.moveSelectedTo(target)) { feedback.move(); return; }
+        if (!card) { invalid(pile); return; }
+      }
+
+      if (card && card.dataset.sourceType !== "stock") {
+        const source = cardSource(card);
+        if (!game.selectSource(source) && game.getState().selected) invalid(card);
+      }
+    });
+
+    board.addEventListener("dblclick", (event) => {
+      const card = event.target.closest(".card.face-up");
+      if (!card || card.dataset.sourceType === "foundation" || card.dataset.sourceType === "stock") return;
+      event.preventDefault();
+      if (game.moveToFoundation(cardSource(card))) feedback.move(); else invalid(card);
+    });
+
+    board.addEventListener("keydown", (event) => {
+      const card = event.target.closest(".card.face-up");
+      if (!card || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      card.click();
+    });
+
+    board.addEventListener("dragstart", (event) => {
+      const card = event.target.closest(".card.face-up");
+      if (!card || card.dataset.sourceType === "stock") { event.preventDefault(); return; }
+      const source = cardSource(card);
+      game.selectSource(source);
+      if (!game.getState().selected) { event.preventDefault(); return; }
+      dragSourceElement = card;
+      card.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", card.dataset.cardId || "card");
+    });
+
+    board.addEventListener("dragover", (event) => {
+      const target = dropTarget(event.target);
+      if (!target || (target.type !== "tableau" && target.type !== "foundation")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      const element = event.target.closest("[data-drop-type]");
+      if (element) element.classList.add("drop-active");
+    });
+
+    board.addEventListener("dragleave", (event) => {
+      const element = event.target.closest("[data-drop-type]");
+      if (element && !element.contains(event.relatedTarget)) element.classList.remove("drop-active");
+    });
+
+    board.addEventListener("drop", (event) => {
+      event.preventDefault();
+      document.querySelectorAll(".drop-active").forEach((element) => element.classList.remove("drop-active"));
+      const target = dropTarget(event.target);
+      if (target && game.moveSelectedTo(target)) feedback.move(); else invalid(event.target);
+    });
+
+    board.addEventListener("dragend", () => {
+      if (dragSourceElement) dragSourceElement.classList.remove("dragging");
+      dragSourceElement = null;
+      document.querySelectorAll(".drop-active").forEach((element) => element.classList.remove("drop-active"));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") game.clearSelection();
+    });
+  }
+
+  app.interactions = { createInteractions };
+})(window.Solitaire = window.Solitaire || {});
+
+(function (app) {
+  "use strict";
+
+  const settings = app.storage.loadSettings();
+  const game = app.game.createGame({ settings });
+  const renderer = app.renderer.createRenderer();
+  const statusElement = document.getElementById("status-message");
+  let messageTimer = null;
+  let audioContext = null;
+
+  function message(text) {
+    window.clearTimeout(messageTimer);
+    statusElement.textContent = text;
+    statusElement.classList.add("show");
+    messageTimer = window.setTimeout(() => statusElement.classList.remove("show"), 2300);
+  }
+
+  function tone(kind) {
+    if (!game.getSettings().sound) return;
+    try {
+      audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const presets = {
+        flip: { frequency: 360, duration: .045, type: "triangle", volume: .035 },
+        move: { frequency: 520, duration: .06, type: "sine", volume: .04 },
+        invalid: { frequency: 145, duration: .09, type: "square", volume: .025 },
+        win: { frequency: 660, duration: .28, type: "sine", volume: .05 }
+      };
+      const preset = presets[kind];
+      oscillator.type = preset.type;
+      oscillator.frequency.setValueAtTime(preset.frequency, audioContext.currentTime);
+      if (kind === "win") oscillator.frequency.exponentialRampToValueAtTime(990, audioContext.currentTime + preset.duration);
+      gain.gain.setValueAtTime(preset.volume, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + preset.duration);
+      oscillator.connect(gain).connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + preset.duration);
+    } catch (_error) { /* sound is optional when Web Audio is unavailable */ }
+  }
+
+  const feedback = { flip: () => tone("flip"), move: () => tone("move"), invalid: () => tone("invalid") };
+  app.interactions.createInteractions(game, feedback);
+
+  function saveCurrentGame() {
+    app.storage.saveGame(game.exportState());
+  }
+
+  function showWin() {
+    const state = game.getState();
+    document.getElementById("win-time").textContent = renderer.formatTime(game.getElapsedTime());
+    document.getElementById("win-moves").textContent = String(state.moves);
+    document.getElementById("win-modal").hidden = false;
+    tone("win");
+  }
+
+  game.subscribe((state, eventName) => {
+    renderer.render(state, game.getSettings());
+    renderer.updateTimer(game.getElapsedTime());
+    if (game.getSettings().autoSave && eventName !== "selection") saveCurrentGame();
+    if (eventName === "win") showWin();
+  });
+
+  function newGame(force) {
+    const state = game.getState();
+    if (!force && state.status === "playing" && state.moves > 0 && !window.confirm("当前游戏尚未结束，确定开始新游戏吗？")) return;
+    document.getElementById("win-modal").hidden = true;
+    game.startNewGame();
+    app.storage.saveGame(game.exportState());
+    message("新牌局已开始");
+  }
+
+  document.getElementById("new-game-btn").addEventListener("click", () => newGame(false));
+  document.getElementById("play-again-btn").addEventListener("click", () => newGame(true));
+  document.getElementById("undo-btn").addEventListener("click", () => {
+    if (game.undoMove()) { tone("move"); message("已撤销上一步"); }
+  });
+  document.getElementById("hint-btn").addEventListener("click", () => {
+    const hint = game.findHint();
+    renderer.showHint(hint);
+    if (hint) message(hint.message); else message("当前未发现可用移动，请重新开始一局。");
+  });
+
+  const settingsModal = document.getElementById("settings-modal");
+  const settingInputs = {
+    sound: document.getElementById("setting-sound"),
+    autoFoundation: document.getElementById("setting-auto-foundation"),
+    autoSave: document.getElementById("setting-autosave"),
+    unlimitedStock: document.getElementById("setting-unlimited"),
+    showTimer: document.getElementById("setting-timer"),
+    showMoves: document.getElementById("setting-moves")
+  };
+
+  function fillSettings() {
+    const current = game.getSettings();
+    Object.keys(settingInputs).forEach((key) => { settingInputs[key].checked = Boolean(current[key]); });
+  }
+
+  function closeSettings() {
+    const next = Object.fromEntries(Object.entries(settingInputs).map(([key, input]) => [key, input.checked]));
+    game.setSettings(next);
+    app.storage.saveSettings(next);
+    if (next.autoSave) saveCurrentGame();
+    settingsModal.hidden = true;
+  }
+
+  document.getElementById("settings-btn").addEventListener("click", () => { fillSettings(); settingsModal.hidden = false; });
+  document.getElementById("settings-done-btn").addEventListener("click", closeSettings);
+  settingsModal.querySelectorAll("[data-close-modal='settings']").forEach((element) => element.addEventListener("click", closeSettings));
+
+  window.addEventListener("beforeunload", () => {
+    if (game.getSettings().autoSave) saveCurrentGame();
+  });
+  window.setInterval(() => renderer.updateTimer(game.getElapsedTime()), 1000);
+
+  const saved = app.storage.loadGame();
+  const shouldRestore = saved && saved.status !== "won" && window.confirm("发现一局未完成的游戏，是否继续？\n\n选择“取消”将开始新游戏。");
+  if (shouldRestore && game.restore(saved)) {
+    message("已恢复上一局");
+  } else {
+    if (saved) app.storage.clearGame();
+    game.startNewGame();
+  }
+
+  renderer.render(game.getState(), game.getSettings());
+  renderer.updateTimer(game.getElapsedTime());
+  window.LocalSolitaireGame = game;
+})(window.Solitaire = window.Solitaire || {});
+
+</script>
+</body>
+</html>

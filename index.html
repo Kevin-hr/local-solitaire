@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Local Solitaire · 经典纸牌</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="toolbar">
+      <div class="brand" aria-label="Local Solitaire">
+        <span class="brand-mark" aria-hidden="true">♠</span>
+        <span><strong>Local Solitaire</strong><small>经典单张翻牌</small></span>
+      </div>
+      <nav class="actions" aria-label="游戏操作">
+        <button id="new-game-btn" class="primary" type="button"><span aria-hidden="true">↻</span> 新游戏</button>
+        <button id="undo-btn" type="button" disabled><span aria-hidden="true">↶</span> 撤销</button>
+        <button id="hint-btn" type="button"><span aria-hidden="true">◇</span> 提示</button>
+        <button id="settings-btn" type="button"><span aria-hidden="true">⚙</span> 设置</button>
+      </nav>
+      <div class="stats" aria-label="游戏统计">
+        <span id="timer-stat"><small>时间</small><strong id="timer">00:00</strong></span>
+        <span id="moves-stat"><small>步数</small><strong id="moves">0</strong></span>
+      </div>
+    </header>
+
+    <main id="game-board" class="game-board" aria-label="纸牌游戏区">
+      <section class="top-row" aria-label="牌库、废牌堆和基础牌堆">
+        <div id="stock" class="pile stock-pile" data-drop-type="stock" aria-label="牌库"></div>
+        <div id="waste" class="pile" data-source-type="waste" aria-label="废牌堆"></div>
+        <div class="top-spacer" aria-hidden="true"></div>
+        <div id="foundation-spades" class="pile foundation" data-drop-type="foundation" data-suit="spades" aria-label="黑桃基础牌堆"></div>
+        <div id="foundation-hearts" class="pile foundation" data-drop-type="foundation" data-suit="hearts" aria-label="红桃基础牌堆"></div>
+        <div id="foundation-clubs" class="pile foundation" data-drop-type="foundation" data-suit="clubs" aria-label="梅花基础牌堆"></div>
+        <div id="foundation-diamonds" class="pile foundation" data-drop-type="foundation" data-suit="diamonds" aria-label="方块基础牌堆"></div>
+      </section>
+
+      <section id="tableau" class="tableau" aria-label="桌面七列">
+        <div class="tableau-column" data-column="0" data-drop-type="tableau" aria-label="第 1 列"></div>
+        <div class="tableau-column" data-column="1" data-drop-type="tableau" aria-label="第 2 列"></div>
+        <div class="tableau-column" data-column="2" data-drop-type="tableau" aria-label="第 3 列"></div>
+        <div class="tableau-column" data-column="3" data-drop-type="tableau" aria-label="第 4 列"></div>
+        <div class="tableau-column" data-column="4" data-drop-type="tableau" aria-label="第 5 列"></div>
+        <div class="tableau-column" data-column="5" data-drop-type="tableau" aria-label="第 6 列"></div>
+        <div class="tableau-column" data-column="6" data-drop-type="tableau" aria-label="第 7 列"></div>
+      </section>
+      <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-modal="settings"></div>
+    <section class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-heading">
+        <div><span class="eyebrow">游戏偏好</span><h2 id="settings-title">设置</h2></div>
+        <button class="icon-btn" type="button" data-close-modal="settings" aria-label="关闭设置">×</button>
+      </div>
+      <label class="setting-row"><span><strong>音效</strong><small>翻牌、移动和提示音</small></span><input id="setting-sound" type="checkbox"></label>
+      <label class="setting-row"><span><strong>自动移至基础牌堆</strong><small>移动后自动收起可用顶牌</small></span><input id="setting-auto-foundation" type="checkbox"></label>
+      <label class="setting-row"><span><strong>自动保存</strong><small>每次操作后保存本局</small></span><input id="setting-autosave" type="checkbox"></label>
+      <label class="setting-row"><span><strong>无限循环牌库</strong><small>废牌用尽后可重新翻牌</small></span><input id="setting-unlimited" type="checkbox"></label>
+      <label class="setting-row"><span><strong>显示计时器</strong></span><input id="setting-timer" type="checkbox"></label>
+      <label class="setting-row"><span><strong>显示步数</strong></span><input id="setting-moves" type="checkbox"></label>
+      <button id="settings-done-btn" class="primary wide" type="button">完成</button>
+    </section>
+  </div>
+
+  <div id="win-modal" class="modal" hidden>
+    <div class="modal-backdrop"></div>
+    <section class="modal-card win-card" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="win-suits" aria-hidden="true"><span>♠</span><span>♥</span><span>♣</span><span>♦</span></div>
+      <span class="eyebrow">牌局完成</span>
+      <h2 id="win-title">恭喜完成本局</h2>
+      <p>四组花色都已回到基础牌堆。</p>
+      <div class="win-stats"><span><small>用时</small><strong id="win-time">00:00</strong></span><span><small>步数</small><strong id="win-moves">0</strong></span></div>
+      <button id="play-again-btn" class="primary wide" type="button">再来一局</button>
+    </section>
+  </div>
+
+  <script defer src="js/cards.js"></script>
+  <script defer src="js/rules.js"></script>
+  <script defer src="js/storage.js"></script>
+  <script defer src="js/game.js"></script>
+  <script defer src="js/renderer.js"></script>
+  <script defer src="js/interactions.js"></script>
+  <script defer src="js/main.js"></script>
+</body>
+</html>
