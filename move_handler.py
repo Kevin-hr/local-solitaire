@@ -93,6 +93,11 @@ class DragHandler:
                         self.engine._flip_top(frm[1])
                     self.engine.check_win()
                     placed = True
+                    if hasattr(self.ui, "trigger_placement_glow"):
+                        self.ui.trigger_placement_glow(self.ui.tableau_base_rect(col))
+                else:
+                    if hasattr(self.ui, "flash_invalid"):
+                        self.ui.flash_invalid(self.ui.tableau_base_rect(col))
             elif zone == "foundation":
                 if (len(cards) == 1
                         and self.engine.can_place_foundation(cards[0], self.engine.foundation[col])):
@@ -102,6 +107,11 @@ class DragHandler:
                         self.engine._flip_top(frm[1])
                     self.engine.check_win()
                     placed = True
+                    if hasattr(self.ui, "trigger_placement_glow"):
+                        self.ui.trigger_placement_glow(self.ui.foundation_rect(col))
+                else:
+                    if hasattr(self.ui, "flash_invalid"):
+                        self.ui.flash_invalid(self.ui.foundation_rect(col))
         if not placed:
             self._return(frm, cards)
         self.drag_cards = []
