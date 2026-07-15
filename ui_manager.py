@@ -139,20 +139,26 @@ class UIManager:
         self.engine = engine
         pygame.font.init()
 
-        # Fonts: Georgia serif (cards/titles) + Corbel humanist sans (UI text)
-        serif = "georgia,cambria,palatino,serif"
-        sans = "corbel,bahnschrift,candara,segoeui,microsoftyahei,sans"
+        # Fonts: Unicode-capable serif (♥♦♣♠) + Corbel humanist sans (UI text)
+        # 关键修复：之前用 Georgia/Cambria 在部分 Windows 上不渲染 Unicode 花色符号，
+        # 改为使用 msyh.ttc（微软雅黑）— 自带完整 Unicode 支持，且字形质量优秀。
+        # 使用 pygame.font.Font 直接指定 .ttc 路径以跳过字体名解析的 fallback 陷阱。
+        _unicode_font = "C:/Windows/Fonts/msyh.ttc"  # Microsoft YaHei — full Unicode coverage
+        _sans = "corbel,bahnschrift,candara,segoeui,microsoftyahei,sans"
 
-        self.font_card_rank = pygame.font.SysFont(serif, TS_MD, bold=True)
-        self.font_card_suit_s = pygame.font.SysFont(serif, TS_SM)
-        self.font_card_suit_l = pygame.font.SysFont(serif, TS_2XL)
-        self.font_hud = pygame.font.SysFont(sans, TS_SM)
-        self.font_hud_small = pygame.font.SysFont(sans, TS_BASE)
-        self.font_title = pygame.font.SysFont(serif, TS_4XL, bold=True)
-        self.font_panel_title = pygame.font.SysFont(serif, TS_LG, bold=True)
-        self.font_panel_header = pygame.font.SysFont(serif, TS_MD, bold=True)
-        self.font_panel_body = pygame.font.SysFont(sans, TS_SM)
-        self.font_placeholder = pygame.font.SysFont(serif, TS_2XL)
+        # Card fonts: use direct Font path for reliable Unicode support
+        self.font_card_rank = pygame.font.Font(_unicode_font, TS_MD)
+        self.font_card_suit_s = pygame.font.Font(_unicode_font, TS_SM)
+        self.font_card_suit_l = pygame.font.Font(_unicode_font, TS_2XL)
+        # HUD/UI: regular SysFont (Chinese UI text handled by msyh via microsoftyahei fallback)
+        self.font_hud = pygame.font.SysFont(_sans, TS_SM)
+        self.font_hud_small = pygame.font.SysFont(_sans, TS_BASE)
+        # Title fonts: use direct font file for Unicode support
+        self.font_title = pygame.font.Font(_unicode_font, TS_4XL)
+        self.font_panel_title = pygame.font.Font(_unicode_font, TS_LG)
+        self.font_panel_header = pygame.font.Font(_unicode_font, TS_MD)
+        self.font_panel_body = pygame.font.SysFont(_sans, TS_SM)
+        self.font_placeholder = pygame.font.Font(_unicode_font, TS_2XL)
 
         # Drag visual state
         self._drag_cards: List[Card] = []
